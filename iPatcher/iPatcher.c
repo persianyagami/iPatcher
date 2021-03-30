@@ -1,4 +1,3 @@
-// iPatcher is part of seposfun (c) tools
 // made by @exploit3dguy
 
 #include <stdio.h>
@@ -14,10 +13,7 @@ addr_t beg_func;
 char *args = NULL;
 void *lolz;
 
-bool fail = false;
-
 int iBoot_check(void* buf, size_t len) {
-     
      lolz = buf + 0x280;
      str_stuff =  buf + 0x285;
 
@@ -26,25 +22,24 @@ int iBoot_check(void* buf, size_t len) {
 
      memcpy(coco, lolz, size);
 
-     *(uint32_t *) (str_stuff) = 0x00000000000000000000000000000000;
+     *(uint32_t *) (str_stuff) = 0;
      
      char *str = "iBoot";
 
      if(strcmp(lolz, str) == 0) {
      	 memcpy(lolz, coco, size);
-     	*(uint32_t *) (coco) = 0x00000000000000000000000000000000;
-     	*(uint32_t *) (coco + 4) = 0x00000000000000000000000000000000;
-        *(uint32_t *) (coco + 8) = 0x00000000000000000000000000000000;
-        *(uint32_t *) (coco + 12) = 0x00000000000000000000000000000000;
-        *(uint32_t *) (coco + 16) = 0x00000000000000000000000000000000;
-        *(uint32_t *) (coco + 20) = 0x00000000000000000000000000000000;
+     	*(uint32_t *) (coco) = 0;
+     	*(uint32_t *) (coco + 4) = 0;
+        *(uint32_t *) (coco + 8) = 0;
+        *(uint32_t *) (coco + 12) = 0;
+        *(uint32_t *) (coco + 16) = 0;
+        *(uint32_t *) (coco + 20) = 0;
      	printf("inputted: %s\n", lolz);
      	return 0;
      }
      else {
-     	printf("Invalid image. Make sure image is extracted, iPatcher doesn't currently support IM4P/IMG4\n");
-     	fail = true;
-     	return -1;
+     	printf("Invalid image. Make sure image is extracted, iPatcher doesn't support IM4P/IMG4\n");
+     	exit(1);
      }
 	return 0;
 }
@@ -54,17 +49,12 @@ int get_iboot_version(void* buf, size_t len) {
 	void *version_string = memmem(buf, len, "iBoot-", strlen("iBoot-"));
 
 	strncpy(version, version_string + 6, 4);
-
 	return atoi(version);
 }
 
 int get_rsa_patch(void* buf, size_t len) {
 	int iboot_version = 0;
 	iBoot_check(buf,len);
-
-	if (fail == true) {
-		return -1;
-	}
 
 	printf("getting %s()\n", __FUNCTION__);
 
@@ -75,17 +65,16 @@ int get_rsa_patch(void* buf, size_t len) {
         str_stuff = memmem(buf,len,"\x08\x69\x88\x72", 0x4);
         if (!str_stuff) {
             printf("[-] Failed to find MOVK W8, #0x4348\n");
-            fail = true;
-            return -1;
+            exit(1);
         }
     }
+
     // iOS 7.x
     else if (iboot_version == 1940){
         str_stuff = memmem(buf,len,"\x0B\x69\x88\x72", 0x4);
         if (!str_stuff) {
             printf("[-] Failed to find MOVK W11, #0x4348\n");
-            fail = true;
-            return -1;
+            exit(1);
         }
     }
 	
@@ -94,8 +83,7 @@ int get_rsa_patch(void* buf, size_t len) {
         str_stuff = memmem(buf,len,"\x0A\x69\x88\x72", 0x4);
         if (!str_stuff) {
             printf("[-] Failed to find MOVK W10, #0x4348\n");
-            fail = true;
-            return -1;
+            exit(1);
         }
     }
 
@@ -112,54 +100,38 @@ int get_rsa_patch(void* buf, size_t len) {
 }
 
 int get_debugenabled_patch(void* buf, size_t len) {
-
-	if (fail == true) {
-		return -1;
-	}
-
 	printf("getting %s()\n", __FUNCTION__);
 
 	str_stuff = memmem(buf,len,"debug-enabled", 13);
-        if (!str_stuff) {
-            printf("[-] Failed to find debug-enabled string\n");
-            fail = true;
-            return -1;
-        }
+    if (!str_stuff) {
+        printf("[-] Failed to find debug-enabled string\n");
+        return -1;
+    }
 
-       beg_func = xref64(buf,0,len,(addr_t)GET_OFFSET(len, str_stuff));
+    beg_func = xref64(buf,0,len,(addr_t)GET_OFFSET(len, str_stuff));
+    beg_func = beg_func + 0x28;
 
-       beg_func = beg_func + 0x28;
+    *(uint32_t *) (buf + beg_func) = 0xD2800020;
 
-       *(uint32_t *) (buf + beg_func) = 0xD2800020;
-
-       printf("[+] Enabled kernel debug\n");
-       printf("%s: quitting\n", __FUNCTION__);
-
+    printf("[+] Enabled kernel debug\n");
+    printf("%s: quitting\n", __FUNCTION__);
 
 	return 0;
 }
 
 int get_bootargs_patch(void *buf, size_t len, char *args) {
-	if (fail == true) {
-		return -1;
-	}
-
 	printf("getting %s(%s)\n", __FUNCTION__, args);
     
     str_stuff = memmem(buf,len,"rd=md0 nand-enable-reformat=1", 28);
     if (!str_stuff) {
     	printf("[-] Failed to find boot-args string\n");
-    	fail = true;
-    	return -1;
+    	exit(1);
     }
     
     char *args2 = strcat(args, "                    ");
-
-
     strcpy(str_stuff, args2);
 
     printf("[+] Set xnu boot-args to %s\n", args);
-
     printf("%s: quitting\n", __FUNCTION__);
 
 	return 0;
@@ -203,11 +175,6 @@ int main(int argc, char* argv[]) {
     fclose(fp);
 
     get_rsa_patch(buf,len);
-	
-    if (fail == true) {
-		return -1;
-     }
-	
     get_debugenabled_patch(buf,len);
     
     for(int i = 1; i < argc; i++) {
@@ -219,8 +186,6 @@ int main(int argc, char* argv[]) {
     if (args) {
         get_bootargs_patch(buf,len,args);
     }
-
-    
 
     fp = fopen(out, "wb+");
 
